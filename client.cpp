@@ -103,14 +103,18 @@ int main (int argc, char *argv[]) {
 		chan.cread(&reply, sizeof(double));
 		cout << "For person " << p << ", at time " << t << ", the value of ecg " << e << " is " << reply << endl;
 	} else if (p != -1){
-		// loop over first 1000 lines
-		for (int i = 0; i < 1000; ++i){
 
-			for (int j = 0; j <= 1; ++j){
+		ofstream out_file("received/x" + to_string(p) + ".csv", ios::app);
+
+		// loop over first 1000 lines
+		for (double i = 0; i < 1000; ++i){
+			out_file << (i*.004);
+
+			for (int j = 1; j <= 2; ++j){
 
 				// send requests for ecgs 1 and 2
 				char buf[MAX_MESSAGE];
-				datamsg x(p, (double)i, j);
+				datamsg x(p, (i*.004), j);
 
 				memcpy(buf, &x, sizeof(datamsg));
 				chan.cwrite(buf, sizeof(datamsg));
@@ -118,11 +122,11 @@ int main (int argc, char *argv[]) {
 				chan.cread(&reply, sizeof(double));
 
 				//write line to received/x1.csv
-				ofstream out_file("received/x" + to_string(j) + ".csv", ios::app);
-				out_file << i << "," << reply << endl;
-				out_file.close();
+				out_file << "," << reply;
 			}
+			out_file << endl;
 		}
+		out_file.close();
 		
 	//Task 3:
 	//Request files
