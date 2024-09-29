@@ -51,7 +51,20 @@ int main (int argc, char *argv[]) {
 	}
 
 	//Task 1:
-	//Run the server process as a child of the client process
+	// Run the server process as a child of the client process
+	pid_t pid = fork();
+	if (pid == 0){
+		// give arguments for the server
+		// server needs './server', '-m', '<val for -m arg>', 'NULL'
+		char* args[] = {
+			(char*)"./server",
+			(char*)"-m",
+			(char*)to_string(m).c_str(),
+			NULL
+		};
+		// in the child, run execvp using the server arguments
+		execvp(args[0], args);
+	}
 
     FIFORequestChannel cont_chan("control", FIFORequestChannel::CLIENT_SIDE);
 	channels.push_back(&cont_chan);
@@ -62,17 +75,25 @@ int main (int argc, char *argv[]) {
 		// send newchannel request to the server
 		MESSAGE_TYPE nc = NEWCHANNEL_MSG;
 		cont_chan.cwrite(&nc, sizeof(MESSAGE_TYPE));
+
 		// create a variable to hold the name
+		char newchan_name[1024];
+
 		// create a response from the server
+		cont_chan.cread(newchan_name, sizeof(newchan_name));
+		
 		// call the FIFORequestChannel constructor with the name from the server
+		FIFORequestChannel *newchan = new FIFORequestChannel(newchan_name, FIFORequestChannel::CLIENT_SIDE);
+
 		// push the new channel into the vector
+		channels.push_back(newchan);
 	}
 
 	FIFORequestChannel chan = *(channels.back());
 
 	//Task 2:
 	//Request data points	
-	if (p == -1 || t == -1 || e == -1){
+	if (!(p == -1 || t == -1 || e == -1)){
 		char buf[MAX_MESSAGE];	
 		datamsg x(p, t, e);
 		
@@ -83,48 +104,81 @@ int main (int argc, char *argv[]) {
 		cout << "For person " << p << ", at time " << t << ", the value of ecg " << e << " is " << reply << endl;
 	} else if (p != -1){
 		// loop over first 1000 lines
-		// send requests for ecgs 1 and 2
-		//write line to received/x1.csv
-	}
-	
+		for (int i = 0; i < 1000; ++i){
+
+			for (int j = 0; j <= 1; ++j){
+
+				// send requests for ecgs 1 and 2
+				char buf[MAX_MESSAGE];
+				datamsg x(p, (double)i, j);
+
+				memcpy(buf, &x, sizeof(datamsg));
+				chan.cwrite(buf, sizeof(datamsg));
+				double reply;
+				chan.cread(&reply, sizeof(double));
+
+				//write line to received/x1.csv
+				ofstream out_file("received/x" + to_string(j) + ".csv", ios::app);
+				out_file << i << "," << reply << endl;
+				out_file.close();
+			}
+		}
+		
 	//Task 3:
 	//Request files
-	filemsg fm(0, 0);
-	string fname = filename;
-	
-	int len = sizeof(filemsg) + (fname.size() + 1);
-	char* buf2 = new char[len];
-	memcpy(buf2, &fm, sizeof(filemsg));
-	strcpy(buf2 + sizeof(filemsg), fname.c_str());
-	chan.cwrite(buf2, len);
+	} else if (filename != ""){
+		filemsg fm(0, 0);
+		string fname = filename;
+		
+		int len = sizeof(filemsg) + (fname.size() + 1);
+		char* buf2 = new char[len];
+		memcpy(buf2, &fm, sizeof(filemsg));
+		strcpy(buf2 + sizeof(filemsg), fname.c_str());
+		chan.cwrite(buf2, len);
 
-	char* buf3 = (char*)m; // create buffer of size buff capacity (m)
-	// loop over the segments in the file file_length / buff capacity(m).
-	// set filemsg instance
-	filemsg* file_req = (filemsg*)buf2;
-	file_req->offset = //set offset in the file
-	file_req->length = // set the length
-	// send the request (buf2)
-	chan.cwrite(buf2, len);
-	// receive the response
-	// cread into buf3 length file_req->length
-	chan.cread(buf3, file_req->length);
-	// write buf3 into file: received/filename
+		__int64_t file_length;
+		chan.cread(&file_length, sizeof(__int64_t));
+		cout << "The length of " << fname << " is " << file_length << endl;
 
-	delete[] buf2;
-	delete[] buf3;
+		char* buf3 = new char [m]; // create buffer of size buff capacity (m)
 
-	// if necessary, close and delete the new channel
-	if (newchan) {
-		// do closes and deletes
+		// loop over the segments in the file file_length / buff capacity(m).
+		for (__int64_t offset = 0; offset < file_length; offset += m){
+
+			// set filemsg instance
+			filemsg* file_req = (filemsg*)buf2;
+
+			file_req->offset = //set offset in the file
+			file_req->length = // set the length
+
+			// send the request (buf2)
+			chan.cwrite(buf2, len);
+
+			// receive the response
+			// cread into buf3 length file_req->length
+			chan.cread(buf3, file_req->length);
+
+			// write buf3 into file: received/filename
+			ofstream out_file("received/" + fname, ios::binary | ios::app);
+			out_file.write(buf3, file_req->length);
+			out_file.close();
+
+			delete[] buf2;
+			delete[] buf3;
+		}
 	}
-
-	__int64_t file_length;
-	chan.cread(&file_length, sizeof(__int64_t));
-	cout << "The length of " << fname << " is " << file_length << endl;
 	
 	//Task 5:
 	// Closing all the channels
-    MESSAGE_TYPE q = QUIT_MSG;
+	MESSAGE_TYPE q = QUIT_MSG;
+
+    // if necessary, close and delete the new channel
+	if (newchan) {
+		// do closes and deletes
+		channels.back()->cwrite(&q, sizeof(MESSAGE_TYPE));
+		delete channels.back();
+		channels.pop_back();
+	}
+
     chan.cwrite(&q, sizeof(MESSAGE_TYPE));
 }
