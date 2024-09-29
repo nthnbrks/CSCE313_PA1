@@ -12,6 +12,7 @@
 */
 #include "common.h"
 #include "FIFORequestChannel.h"
+#include <sys/time.h>
 
 using namespace std;
 
@@ -105,7 +106,7 @@ int main (int argc, char *argv[]) {
 		cout << "For person " << p << ", at time " << t << ", the value of ecg " << e << " is " << reply << endl;
 	} else if (p != -1){
 
-		ofstream out_file("received/x" + to_string(p) + ".csv", ios::app);
+		ofstream out_file("received/x1.csv", ios::app);
 
 		// loop over first 1000 lines
 		for (double i = 0; i < 1000; ++i){
@@ -132,6 +133,9 @@ int main (int argc, char *argv[]) {
 	//Task 3:
 	//Request files
 	} else if (filename != ""){
+		struct timeval start;
+		struct timeval end;
+		gettimeofday(&start, NULL);
 		filemsg fm(0, 0);
 		string fname = filename;
 		
@@ -171,6 +175,10 @@ int main (int argc, char *argv[]) {
 
 		delete[] buf2;
 		delete[] buf3;
+		gettimeofday(&end, NULL);
+		double timeTaken;
+		timeTaken = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) * 1e-6;
+		cout << "Time taken to transfer file: " << timeTaken << " seconds." << endl;
 	}
 	
 	//Task 5:
