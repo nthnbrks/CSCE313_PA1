@@ -64,6 +64,7 @@ int main (int argc, char *argv[]) {
 		};
 		// in the child, run execvp using the server arguments
 		execvp(args[0], args);
+		return(1);
 	}
 
     FIFORequestChannel cont_chan("control", FIFORequestChannel::CLIENT_SIDE);
@@ -144,7 +145,7 @@ int main (int argc, char *argv[]) {
 		chan.cread(&file_length, sizeof(__int64_t));
 		cout << "The length of " << fname << " is " << file_length << endl;
 
-		char* buf3 = new char [m]; // create buffer of size buff capacity (m)
+		char* buf3 = new char[m]; // create buffer of size buff capacity (m)
 
 		// loop over the segments in the file file_length / buff capacity(m).
 		for (__int64_t offset = 0; offset < file_length; offset += m){
@@ -152,8 +153,8 @@ int main (int argc, char *argv[]) {
 			// set filemsg instance
 			filemsg* file_req = (filemsg*)buf2;
 
-			file_req->offset = //set offset in the file
-			file_req->length = // set the length
+			file_req->offset = offset;//set offset in the file
+			file_req->length = min(static_cast<__int64_t>(m), file_length - offset);// set the length
 
 			// send the request (buf2)
 			chan.cwrite(buf2, len);
@@ -166,10 +167,10 @@ int main (int argc, char *argv[]) {
 			ofstream out_file("received/" + fname, ios::binary | ios::app);
 			out_file.write(buf3, file_req->length);
 			out_file.close();
-
-			delete[] buf2;
-			delete[] buf3;
 		}
+
+		delete[] buf2;
+		delete[] buf3;
 	}
 	
 	//Task 5:
